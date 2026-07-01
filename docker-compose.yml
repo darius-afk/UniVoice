@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # 1. BAZA DE DATE (PostgreSQL)
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+      POSTGRES_DB: univoice_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ${PWD}/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app-network
+    deploy:
+      replicas: 1
+
+  # 2. INTERFAȚA PENTRU BAZA DE DATE (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - app-network
+    depends_on:
+      - db
+
+  # 3. AUTENTIFICARE (Keycloak)
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.1
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    networks:
+      - app-network
+
+  # 4. APLICAȚIA (Poll Manager)
+  poll_manager:
+    build: ./poll_manager
+    image: univoice-poll-manager
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://admin:adminpassword@db:5432/univoice_db
+      - FLASK_ENV=development
+      - POLL_PROMOTER_URL=http://poll_promoter:5001
+      - PROFILE_SERVICE_URL=http://profile_service:5002
+      - REDIS_URL=redis://redis:6379/0
+      - RATE_LIMIT_ENABLED=1
+      - CACHE_ENABLED=1
+    volumes:
+      - ${PWD}/poll_manager:/app
+    networks:
+      - app-network
+    depends_on:
+      - db
+      - keycloak
+    deploy:
+      replicas: 3  # Demonstrăm replicarea pentru Docker Swarm -> 2+
+
+  # 5. SERVICIU PROMOVARE POLL (microserviciu propriu)
+  poll_promoter:
+    build: ./poll_promoter
+    image: univoice-poll-promoter
+    environment:
+      - DATABASE_URL=postgresql://admin:adminpassword@db:5432/univoice_db
+      - PORT=5001
+    ports:
+      - "5001:5001"
+    networks:
+      - app-network
+    depends_on:
+      - db
+
+  # 6. SERVICIU PROFIL (microserviciu propriu)
+  profile_service:
+    build: ./profile_service
+    image: univoice-profile-service
+    environment:
+      - DATABASE_URL=postgresql://admin:adminpassword@db:5432/univoice_db
+      - PORT=5002
+      - REDIS_URL=redis://redis:6379/0
+      - CACHE_ENABLED=1
+    ports:
+      - "5002:5002"
+    networks:
+      - app-network
+    depends_on:
+      - db
+
+  # 7. SERVICIU BACKUP DB (extra)
+  db_backup:
+    build: ./db_backup
+    image: univoice-db-backup
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=univoice_db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=adminpassword
+      - BACKUP_DIR=/backups
+      - BACKUP_INTERVAL_SECONDS=300
+      - BACKUP_KEEP_LAST=20
+    volumes:
+      - backups_data:/backups
+    networks:
+      - app-network
+    depends_on:
+      - db
+
+  # 8. REDIS (rate-limiting distribuit + caching)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  keycloak_data:
+  backups_data:
+
+networks:
+  app-network:
+    driver: overlay
+    attachable: true

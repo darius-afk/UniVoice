@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UniVoice</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 20px;}
+        .btn { padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; cursor: pointer; border: none; font-size: 16px;}
+        .btn-logout { background: #dc3545; }
+        .poll-card { border: 1px solid #ddd; padding: 15px; margin-top: 20px; border-radius: 5px; }
+        .official { border-left: 5px solid green; background-color: #f9fff9; }
+        .chart-container { position: relative; height: 200px; width: 100%; margin-top: 15px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>UniVoice</h1>
+            {% if user %}
+                <p>Salut, <strong>{{ user.preferred_username }}</strong>!</p>
+            {% else %}
+                <p>Platformă de votare distribuită</p>
+            {% endif %}
+        </div>
+        <div>
+            {% if user %}
+                <a href="/create_poll" class="btn" style="background-color: #28a745; margin-right: 10px;">Creează Sondaj</a>
+                <a href="/logout" class="btn btn-logout">Logout</a>
+            {% else %}
+                <a href="/login" class="btn">Login SSO</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <h2>Sondaje Active</h2>
+    {% for poll in polls %}
+    <div class="poll-card {% if poll.is_official %}official{% endif %}">
+        <h3>{{ poll.title }}</h3>
+        <p>{{ poll.question }}</p>
+        
+        <div style="margin-top: 10px;">
+            {% if user %}
+                <a href="/vote/{{ poll.id }}" class="btn">Votează</a>
+            {% else %}
+                <small>Loghează-te pentru a vota</small>
+            {% endif %}
+            
+            <button onclick="toggleChart('chart-{{ poll.id }}')" class="btn" style="background-color: #17a2b8; margin-left: 10px;">Vezi Statistici</button>
+        </div>
+        
+        <div id="chart-{{ poll.id }}" class="chart-container">
+            <canvas id="canvas-{{ poll.id }}"></canvas>
+        </div>
+    </div>
+    {% else %}
+        <p>Nu există sondaje active.</p>
+    {% endfor %}
+    
+    <script>
+        function toggleChart(chartId) {
+            var x = document.getElementById(chartId);
+            if (x.style.display === "none" || x.style.display === "") {
+                x.style.display = "block";
+            } else {
+                x.style.display = "none";
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!window.Chart) {
+                console.error('Chart.js nu a fost încărcat.');
+                return;
+            }
+
+            // Date pregătite deja în Flask pentru a evita Jinja în interiorul JS
+            const pollsData = {{ polls_data | tojson | safe }}; // jinja2
+
+            pollsData.forEach(poll => {
+                const canvas = document.getElementById('canvas-' + poll.id);
+                if (!canvas) {
+                    console.warn(`Lipseste canvas pentru sondajul ${poll.id}`);
+                    return;
+                }
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.warn(`Contextul 2D nu poate fi obținut pentru sondajul ${poll.id}`);
+                    return;
+                }
+
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(poll.results),
+                        datasets: [{
+                            label: 'Număr de voturi',
+                            data: Object.values(poll.results),
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

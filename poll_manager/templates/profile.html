@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Profilul Meu - UniVoice</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 20px;}
+        .btn { padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; cursor: pointer; border: none; font-size: 16px;}
+        .btn-logout { background: #dc3545; }
+        .stats-card { border: 1px solid #ddd; padding: 20px; margin-top: 20px; border-radius: 5px; background-color: #f8f9fa; }
+        .stat-item { margin-bottom: 15px; font-size: 18px; }
+        .stat-value { font-weight: bold; color: #007bff; font-size: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>Profilul Meu</h1>
+            <p>Utilizator: <strong>{{ user.preferred_username or user.email or 'Unknown' }}</strong></p>
+        </div>
+        <div>
+            <a href="/" class="btn" style="margin-right: 10px;">Acasă</a>
+            <a href="/logout" class="btn btn-logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="stats-card">
+        <h2>Statistici Activitate</h2>
+        <div class="stat-item">
+            Ai votat în <span class="stat-value">{{ voted_polls_count }}</span> sondaje.
+        </div>
+        <div class="stat-item">
+            Ai creat <span class="stat-value">{{ created_polls_count }}</span> sondaje.
+        </div>
+        <div class="stat-item">
+            Sondajele create de tine au primit în total <span class="stat-value">{{ created_polls_votes_count }}</span> voturi.
+        </div>
+    </div>
+</body>
+</html>

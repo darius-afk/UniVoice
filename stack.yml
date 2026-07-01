@@ -1,0 +1,168 @@
+services:
+  db:
+    configs:
+      - source: db_init_sql_v2
+        target: /docker-entrypoint-initdb.d/init.sql
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+    environment:
+      POSTGRES_DB: univoice_db
+      POSTGRES_PASSWORD: adminpassword
+      POSTGRES_USER: admin
+    image: postgres:15
+    networks:
+      db-net: null
+    volumes:
+      - type: volume
+        source: postgres_data
+        target: /var/lib/postgresql/data
+        volume: {}
+  keycloak:
+    command:
+      - start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    image: quay.io/keycloak/keycloak:22.0.1
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      idp-net: null
+    ports:
+      - mode: ingress
+        target: 8080
+        published: 8080
+        protocol: tcp
+    volumes:
+      - type: volume
+        source: keycloak_data
+        target: /opt/keycloak/data
+        volume: {}
+  pgadmin:
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    image: dpage/pgadmin4
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      db-net: null
+    ports:
+      - mode: ingress
+        target: 80
+        published: 5050
+        protocol: tcp
+  poll_manager:
+    deploy:
+      replicas: 2
+    environment:
+      DATABASE_URL: postgresql://admin:adminpassword@db:5432/univoice_db
+      FLASK_ENV: development
+      POLL_PROMOTER_URL: http://poll_promoter:5001
+      PROFILE_SERVICE_URL: http://profile_service:5002
+      REDIS_URL: redis://redis:6379/0
+      RATE_LIMIT_ENABLED: '1'
+      CACHE_ENABLED: '1'
+      # Browser-visible Keycloak URL (from Windows).
+      # Set WSL_HOST_IP when deploying (see SWARM.md) so this stays valid if the WSL IP changes.
+      KEYCLOAK_EXTERNAL_URL: http://${WSL_HOST_IP:-172.29.28.215}:8080
+    image: univoice-poll-manager:latest
+    networks:
+      app-net: null
+      db-net: null
+      idp-net: null
+    ports:
+      - mode: ingress
+        target: 5000
+        published: 5000
+        protocol: tcp
+
+  poll_promoter:
+    deploy:
+      replicas: 1
+    environment:
+      DATABASE_URL: postgresql://admin:adminpassword@db:5432/univoice_db
+      PORT: 5001
+    image: univoice-poll-promoter:latest
+    networks:
+      app-net: null
+      db-net: null
+    ports:
+      - mode: ingress
+        target: 5001
+        published: 5001
+        protocol: tcp
+
+  profile_service:
+    deploy:
+      replicas: 1
+    environment:
+      DATABASE_URL: postgresql://admin:adminpassword@db:5432/univoice_db
+      PORT: 5002
+      REDIS_URL: redis://redis:6379/0
+      CACHE_ENABLED: '1'
+    image: univoice-profile-service:latest
+    networks:
+      app-net: null
+      db-net: null
+    ports:
+      - mode: ingress
+        target: 5002
+        published: 5002
+        protocol: tcp
+
+  db_backup:
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: univoice_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_SECONDS: 300
+      BACKUP_KEEP_LAST: 20
+    image: univoice-db-backup:latest
+    networks:
+      db-net: null
+    volumes:
+      - type: volume
+        source: backups_data
+        target: /backups
+        volume: {}
+
+  redis:
+    deploy:
+      replicas: 1
+    image: redis:7-alpine
+    networks:
+      app-net: null
+networks:
+  app-net:
+    driver: overlay
+    attachable: true
+  db-net:
+    driver: overlay
+    attachable: true
+  idp-net:
+    driver: overlay
+    attachable: true
+configs:
+  db_init_sql_v2:
+    file: ./db/init.sql
+volumes:
+  keycloak_data: {}
+  postgres_data: {}
+  backups_data: {}

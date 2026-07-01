@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Votează - UniVoice</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn-secondary { background: #6c757d; }
+        .options { margin: 20px 0; }
+        .option { margin: 15px 0; padding: 10px; border: 1px solid #eee; border-radius: 5px; }
+        .option:hover { background-color: #f8f9fa; }
+        label { margin-left: 10px; cursor: pointer; font-size: 1.1em; }
+        input[type="radio"] { transform: scale(1.2); }
+    </style>
+</head>
+<body>
+    <h1>{{ poll.title }}</h1>
+    <p style="font-size: 1.2em; color: #555;">{{ poll.question }}</p>
+    
+    <form method="POST">
+        <div class="options">
+            {% for option in poll.options %}
+            <div class="option">
+                <input type="radio" id="opt{{ option.id }}" name="choice" value="{{ option.id }}" required>
+                <label for="opt{{ option.id }}">{{ option.text }}</label>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn">Trimite Votul</button>
+        <a href="/" class="btn btn-secondary">Înapoi</a>
+    </form>
+</body>
+</html>
